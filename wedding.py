@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
+from pathlib import Path
 
 
 # =========================================================
@@ -9,7 +10,7 @@ import plotly.express as px
 # =========================================================
 
 st.set_page_config(
-    page_title="Indian Wedding Cost Analysis",
+    page_title="Indian Wedding Analysis",
     page_icon="💍",
     layout="wide"
 )
@@ -20,12 +21,19 @@ st.set_page_config(
 # =========================================================
 
 st.title("💍 Indian Wedding Cost Analysis Dashboard")
-st.markdown(
-    "Explore wedding costs based on **Wedding Type, Place, Decoration, "
-    "Entertainment, Gifts and Invitations**."
-)
 
-st.divider()
+st.markdown(
+    """
+    Analyze Indian wedding expenses based on:
+    
+    - 💒 Wedding Type
+    - 📍 Place
+    - 🌸 Decoration
+    - 🎵 Entertainment
+    - 🎁 Gifts
+    - 💌 Invitations / Cards
+    """
+)
 
 
 # =========================================================
@@ -35,74 +43,60 @@ st.divider()
 @st.cache_data
 def load_data():
 
-    df = pd.read_csv("../Datasets/Indian_Weddings_.csv")
+    # -----------------------------------------------------
+    # Get the folder where wedding.py is located
+    # -----------------------------------------------------
 
-    # Remove unnecessary index column if present
-    if "Unnamed: 0" in df.columns:
-        df = df.drop("Unnamed: 0", axis=1)
+    BASE_DIR = Path(__file__).resolve().parent
 
-    # Rename columns
-    df = df.rename(columns={
-        "Wedding/Type": "Wedding_Type",
-        "Decor/Category": "Decor_Category",
-        "Entertainment/Category": "Entertainment_Category",
-        "Gifts/Category": "Giftstypes",
-        "Cards/Category": "Cardstypes",
-        "Cost/of/Type": "CostofType",
-        "Clothes/Bride": "Bride_clothes",
-        "Clothes/Groom": "Groom_clothes",
-        "Gifts(per/piece)": "Gifts",
-        "Invitations/Cards": "Invitations_Cards"
-    })
+    # -----------------------------------------------------
+    # Possible CSV locations
+    # -----------------------------------------------------
 
-    # Clean categorical columns
-    categorical_columns = [
-        "Wedding_Type",
-        "Place",
-        "Decor_Category",
-        "Entertainment_Category",
-        "Giftstypes",
-        "Cardstypes"
+    possible_files = [
+        BASE_DIR / "Datasets" / "Indian_Weddings_.csv",
+        BASE_DIR / "Indian_Weddings_.csv",
+        BASE_DIR / "data" / "Indian_Weddings_.csv",
+        BASE_DIR / "dataset" / "Indian_Weddings_.csv"
     ]
 
-    for col in categorical_columns:
-        if col in df.columns:
-            df[col] = (
-                df[col]
-                .astype(str)
-                .str.replace("/", "", regex=False)
-                .str.strip()
-            )
+    csv_file = None
 
-    # Clean CostofType
-    if "CostofType" in df.columns:
-        df["CostofType"] = (
-            df["CostofType"]
-            .astype(str)
-            .str.replace("e+", "", regex=False)
-            .str.strip()
+    for file in possible_files:
+        if file.exists():
+            csv_file = file
+            break
+
+    # -----------------------------------------------------
+    # If CSV is not found
+    # -----------------------------------------------------
+
+    if csv_file is None:
+
+        st.error("❌ Indian_Weddings_.csv was not found.")
+
+        st.write("Streamlit is looking in these locations:")
+
+        for file in possible_files:
+            st.code(str(file))
+
+        st.warning(
+            """
+            Please make sure your GitHub repository contains:
+
+            wedding.py
+            Datasets/
+                Indian_Weddings_.csv
+            """
         )
 
-        df["CostofType"] = pd.to_numeric(
-            df["CostofType"],
-            errors="coerce"
-        )
+        st.stop()
 
-    # Convert numeric columns
-    numeric_columns = [
-        "CostofType",
-        "Decor",
-        "Entertainment",
-        "Gifts",
-        "Invitations_Cards"
-    ]
+    # -----------------------------------------------------
+    # Read CSV
+    # -----------------------------------------------------
 
-    for col in numeric_columns:
-        if col in df.columns:
-            df[col] = pd.to_numeric(
-                df[col],
-                errors="coerce"
-            )
+    df = pd.read_csv(csv_file)
 
     return df
 
@@ -111,75 +105,210 @@ df = load_data()
 
 
 # =========================================================
+# REMOVE UNNECESSARY COLUMN
+# =========================================================
+
+if "Unnamed: 0" in df.columns:
+    df = df.drop(columns=["Unnamed: 0"])
+
+
+# =========================================================
+# RENAME COLUMNS
+# =========================================================
+
+rename_columns = {
+
+    "Wedding/Type": "Wedding_Type",
+
+    "Decor/Category": "Decor_Category",
+
+    "Entertainment/Category": "Entertainment_Category",
+
+    "Gifts/Category": "Giftstypes",
+
+    "Cards/Category": "Cardstypes",
+
+    "Cost/of/Type": "CostofType",
+
+    "Clothes/Bride": "Bride_clothes",
+
+    "Clothes/Groom": "Groom_clothes",
+
+    "Gifts(per/piece)": "Gifts",
+
+    "Invitations/Cards": "Invitations_Cards"
+}
+
+
+df = df.rename(columns=rename_columns)
+
+
+# =========================================================
+# CLEAN TEXT COLUMNS
+# =========================================================
+
+text_columns = [
+    "Wedding_Type",
+    "Place",
+    "Decor_Category",
+    "Entertainment_Category",
+    "Giftstypes",
+    "Cardstypes"
+]
+
+
+for column in text_columns:
+
+    if column in df.columns:
+
+        df[column] = (
+            df[column]
+            .astype(str)
+            .str.replace("/", "", regex=False)
+            .str.strip()
+        )
+
+        df[column] = df[column].replace(
+            ["nan", "None", ""],
+            np.nan
+        )
+
+
+# =========================================================
+# CLEAN NUMERIC COLUMNS
+# =========================================================
+
+numeric_columns = [
+    "CostofType",
+    "Decor",
+    "Entertainment",
+    "Gifts",
+    "Invitations_Cards"
+]
+
+
+for column in numeric_columns:
+
+    if column in df.columns:
+
+        df[column] = (
+            df[column]
+            .astype(str)
+            .str.replace("e+", "", regex=False)
+            .str.strip()
+        )
+
+        df[column] = pd.to_numeric(
+            df[column],
+            errors="coerce"
+        )
+
+
+# =========================================================
 # CHECK DATA
 # =========================================================
 
 if df.empty:
-    st.error("The dataset is empty.")
+
+    st.error("The CSV file was found, but it contains no data.")
+
     st.stop()
 
 
 # =========================================================
-# SIDEBAR FILTERS
+# SIDEBAR
 # =========================================================
 
-st.sidebar.header("🔎 Filters")
+st.sidebar.title("🔎 Filters")
 
+
+# ---------------------------------------------------------
 # Wedding Type
-wedding_options = sorted(
-    df["Wedding_Type"].dropna().unique()
+# ---------------------------------------------------------
+
+wedding_types = sorted(
+    df["Wedding_Type"]
+    .dropna()
+    .unique()
+    .tolist()
 )
+
 
 selected_wedding = st.sidebar.selectbox(
-    "Select Wedding Type",
-    ["All"] + wedding_options
+    "💒 Wedding Type",
+    ["All"] + wedding_types
 )
 
-# Apply Wedding Type filter
+
 filtered_df = df.copy()
 
+
 if selected_wedding != "All":
+
     filtered_df = filtered_df[
         filtered_df["Wedding_Type"] == selected_wedding
     ]
 
 
+# ---------------------------------------------------------
 # Place
-place_options = sorted(
-    filtered_df["Place"].dropna().unique()
+# ---------------------------------------------------------
+
+places = sorted(
+    filtered_df["Place"]
+    .dropna()
+    .unique()
+    .tolist()
 )
+
 
 selected_place = st.sidebar.selectbox(
-    "Select Place",
-    ["All"] + place_options
+    "📍 Place",
+    ["All"] + places
 )
 
+
 if selected_place != "All":
+
     filtered_df = filtered_df[
         filtered_df["Place"] == selected_place
     ]
 
 
-# Decor Category
-decor_options = sorted(
-    filtered_df["Decor_Category"].dropna().unique()
+# ---------------------------------------------------------
+# Decoration
+# ---------------------------------------------------------
+
+decor_categories = sorted(
+    filtered_df["Decor_Category"]
+    .dropna()
+    .unique()
+    .tolist()
 )
+
 
 selected_decor = st.sidebar.selectbox(
-    "Select Decor Category",
-    ["All"] + decor_options
+    "🌸 Decoration Category",
+    ["All"] + decor_categories
 )
 
+
 if selected_decor != "All":
+
     filtered_df = filtered_df[
         filtered_df["Decor_Category"] == selected_decor
     ]
 
 
+# =========================================================
+# SIDEBAR RECORD COUNT
+# =========================================================
+
 st.sidebar.divider()
 
-st.sidebar.info(
-    f"Showing **{len(filtered_df)}** records"
+st.sidebar.metric(
+    "📊 Records",
+    len(filtered_df)
 )
 
 
@@ -187,40 +316,49 @@ st.sidebar.info(
 # KPI SECTION
 # =========================================================
 
-st.subheader("📊 Wedding Cost Overview")
+st.subheader("📊 Key Performance Indicators")
+
 
 col1, col2, col3, col4 = st.columns(4)
 
+
 avg_wedding_cost = filtered_df["CostofType"].mean()
-avg_decor = filtered_df["Decor"].mean()
-avg_entertainment = filtered_df["Entertainment"].mean()
-avg_gifts = filtered_df["Gifts"].mean()
+
+avg_decor_cost = filtered_df["Decor"].mean()
+
+avg_entertainment_cost = filtered_df["Entertainment"].mean()
+
+avg_gifts_cost = filtered_df["Gifts"].mean()
+
 
 col1.metric(
-    "Average Wedding Cost",
+    "💰 Avg Wedding Cost",
     f"{avg_wedding_cost:,.2f}"
     if pd.notna(avg_wedding_cost)
     else "N/A"
 )
 
+
 col2.metric(
-    "Average Decor Cost",
-    f"{avg_decor:,.2f}"
-    if pd.notna(avg_decor)
+    "🌸 Avg Decoration",
+    f"{avg_decor_cost:,.2f}"
+    if pd.notna(avg_decor_cost)
     else "N/A"
 )
+
 
 col3.metric(
-    "Average Entertainment",
-    f"{avg_entertainment:,.2f}"
-    if pd.notna(avg_entertainment)
+    "🎵 Avg Entertainment",
+    f"{avg_entertainment_cost:,.2f}"
+    if pd.notna(avg_entertainment_cost)
     else "N/A"
 )
 
+
 col4.metric(
-    "Average Gifts",
-    f"{avg_gifts:,.2f}"
-    if pd.notna(avg_gifts)
+    "🎁 Avg Gifts",
+    f"{avg_gifts_cost:,.2f}"
+    if pd.notna(avg_gifts_cost)
     else "N/A"
 )
 
@@ -232,7 +370,10 @@ st.divider()
 # DATA PREVIEW
 # =========================================================
 
-with st.expander("📋 View Filtered Data"):
+st.subheader("📋 Wedding Data")
+
+
+with st.expander("View Filtered Dataset"):
 
     st.dataframe(
         filtered_df,
@@ -242,49 +383,69 @@ with st.expander("📋 View Filtered Data"):
 
 
 # =========================================================
-# WEDDING TYPE ANALYSIS
+# WEDDING COST BY TYPE
 # =========================================================
 
 st.subheader("💰 Average Wedding Cost by Wedding Type")
 
+
 wedding_cost = (
-    df.groupby("Wedding_Type", as_index=False)["CostofType"]
+    df.groupby(
+        "Wedding_Type",
+        as_index=False
+    )["CostofType"]
     .mean()
-    .sort_values("CostofType", ascending=False)
+    .dropna()
+    .sort_values(
+        "CostofType",
+        ascending=False
+    )
 )
 
-fig_wedding = px.bar(
+
+fig1 = px.bar(
     wedding_cost,
     x="Wedding_Type",
     y="CostofType",
     text_auto=".2f",
-    title="Average Wedding Cost"
+    title="Average Wedding Cost by Wedding Type"
 )
 
-fig_wedding.update_layout(
+
+fig1.update_layout(
     xaxis_title="Wedding Type",
     yaxis_title="Average Cost"
 )
 
+
 st.plotly_chart(
-    fig_wedding,
+    fig1,
     use_container_width=True
 )
 
 
 # =========================================================
-# PLACE ANALYSIS
+# WEDDING COST BY PLACE
 # =========================================================
 
 st.subheader("📍 Average Wedding Cost by Place")
 
+
 place_cost = (
-    df.groupby("Place", as_index=False)["CostofType"]
+    df.groupby(
+        "Place",
+        as_index=False
+    )["CostofType"]
     .mean()
-    .sort_values("CostofType", ascending=False)
+    .dropna()
+    .sort_values(
+        "CostofType",
+        ascending=False
+    )
 )
 
-fig_place = px.bar(
+
+fig2 = px.bar(
     place_cost,
     x="Place",
     y="CostofType",
@@ -292,47 +453,63 @@ fig_place = px.bar(
     title="Average Wedding Cost by Place"
 )
 
-fig_place.update_layout(
+
+fig2.update_layout(
     xaxis_title="Place",
     yaxis_title="Average Cost"
 )
 
+
 st.plotly_chart(
-    fig_place,
+    fig2,
     use_container_width=True
 )
 
 
 # =========================================================
-# DECOR ANALYSIS
+# DECORATION ANALYSIS
 # =========================================================
 
 st.subheader("🌸 Decoration Analysis")
 
+
 decor_cost = (
-    filtered_df
-    .groupby("Decor_Category", as_index=False)["Decor"]
+    filtered_df.groupby(
+        "Decor_Category",
+        as_index=False
+    )["Decor"]
     .mean()
-    .sort_values("Decor", ascending=False)
+    .dropna()
+    .sort_values(
+        "Decor",
+        ascending=False
+    )
 )
 
-fig_decor = px.bar(
-    decor_cost,
-    x="Decor_Category",
-    y="Decor",
-    text_auto=".2f",
-    title="Average Decoration Cost by Category"
-)
 
-fig_decor.update_layout(
-    xaxis_title="Decoration Category",
-    yaxis_title="Average Decoration Cost"
-)
+if not decor_cost.empty:
 
-st.plotly_chart(
-    fig_decor,
-    use_container_width=True
-)
+    fig3 = px.bar(
+        decor_cost,
+        x="Decor_Category",
+        y="Decor",
+        text_auto=".2f",
+        title="Average Decoration Cost"
+    )
+
+    fig3.update_layout(
+        xaxis_title="Decoration Category",
+        yaxis_title="Average Decoration Cost"
+    )
+
+    st.plotly_chart(
+        fig3,
+        use_container_width=True
+    )
+
+else:
+
+    st.info("No decoration data available for this selection.")
 
 
 # =========================================================
@@ -341,115 +518,150 @@ st.plotly_chart(
 
 st.subheader("🎵 Entertainment Analysis")
 
+
 entertainment_cost = (
-    filtered_df
-    .groupby(
+    filtered_df.groupby(
         "Entertainment_Category",
         as_index=False
     )["Entertainment"]
     .mean()
+    .dropna()
     .sort_values(
         "Entertainment",
         ascending=False
     )
 )
 
-fig_entertainment = px.bar(
-    entertainment_cost,
-    x="Entertainment_Category",
-    y="Entertainment",
-    text_auto=".2f",
-    title="Average Entertainment Cost"
-)
 
-fig_entertainment.update_layout(
-    xaxis_title="Entertainment Category",
-    yaxis_title="Average Entertainment Cost"
-)
+if not entertainment_cost.empty:
 
-st.plotly_chart(
-    fig_entertainment,
-    use_container_width=True
-)
+    fig4 = px.bar(
+        entertainment_cost,
+        x="Entertainment_Category",
+        y="Entertainment",
+        text_auto=".2f",
+        title="Average Entertainment Cost"
+    )
+
+    fig4.update_layout(
+        xaxis_title="Entertainment Category",
+        yaxis_title="Average Entertainment Cost"
+    )
+
+    st.plotly_chart(
+        fig4,
+        use_container_width=True
+    )
+
+else:
+
+    st.info(
+        "No entertainment data available for this selection."
+    )
 
 
 # =========================================================
 # GIFTS ANALYSIS
 # =========================================================
 
-st.subheader("🎁 Gifts Analysis")
+st.subheader("🎁 Gift Analysis")
+
 
 gift_cost = (
-    filtered_df
-    .groupby("Giftstypes", as_index=False)["Gifts"]
+    filtered_df.groupby(
+        "Giftstypes",
+        as_index=False
+    )["Gifts"]
     .mean()
+    .dropna()
     .sort_values(
         "Gifts",
         ascending=False
     )
 )
 
-fig_gifts = px.bar(
-    gift_cost,
-    x="Giftstypes",
-    y="Gifts",
-    text_auto=".2f",
-    title="Average Gift Cost by Type"
-)
 
-fig_gifts.update_layout(
-    xaxis_title="Gift Type",
-    yaxis_title="Average Gift Cost"
-)
+if not gift_cost.empty:
 
-st.plotly_chart(
-    fig_gifts,
-    use_container_width=True
-)
+    fig5 = px.bar(
+        gift_cost,
+        x="Giftstypes",
+        y="Gifts",
+        text_auto=".2f",
+        title="Average Gift Cost"
+    )
+
+    fig5.update_layout(
+        xaxis_title="Gift Type",
+        yaxis_title="Average Gift Cost"
+    )
+
+    st.plotly_chart(
+        fig5,
+        use_container_width=True
+    )
+
+else:
+
+    st.info("No gift data available.")
 
 
 # =========================================================
-# INVITATION / CARD ANALYSIS
+# INVITATION ANALYSIS
 # =========================================================
 
-st.subheader("💌 Invitation & Card Analysis")
+st.subheader("💌 Invitation / Card Analysis")
+
 
 card_cost = (
-    filtered_df
-    .groupby("Cardstypes", as_index=False)["Invitations_Cards"]
+    filtered_df.groupby(
+        "Cardstypes",
+        as_index=False
+    )["Invitations_Cards"]
     .mean()
+    .dropna()
     .sort_values(
         "Invitations_Cards",
         ascending=False
     )
 )
 
-fig_cards = px.bar(
-    card_cost,
-    x="Cardstypes",
-    y="Invitations_Cards",
-    text_auto=".2f",
-    title="Average Invitation/Card Cost"
-)
 
-fig_cards.update_layout(
-    xaxis_title="Card Type",
-    yaxis_title="Average Cost"
-)
+if not card_cost.empty:
 
-st.plotly_chart(
-    fig_cards,
-    use_container_width=True
-)
+    fig6 = px.bar(
+        card_cost,
+        x="Cardstypes",
+        y="Invitations_Cards",
+        text_auto=".2f",
+        title="Average Invitation / Card Cost"
+    )
+
+    fig6.update_layout(
+        xaxis_title="Card Type",
+        yaxis_title="Average Cost"
+    )
+
+    st.plotly_chart(
+        fig6,
+        use_container_width=True
+    )
+
+else:
+
+    st.info(
+        "No invitation/card data available."
+    )
 
 
 # =========================================================
-# SELECTED FILTER ANALYSIS
+# SELECTED COMBINATION ANALYSIS
 # =========================================================
 
 st.divider()
 
-st.subheader("🎯 Selected Wedding Combination Analysis")
+st.subheader("🎯 Detailed Selection Analysis")
+
 
 if (
     selected_wedding != "All"
@@ -458,29 +670,35 @@ if (
 ):
 
     st.write(
-        f"""
-        **Wedding Type:** {selected_wedding}  
-        **Place:** {selected_place}  
-        **Decor Category:** {selected_decor}
-        """
+        f"**Wedding Type:** {selected_wedding}"
     )
 
+    st.write(
+        f"**Place:** {selected_place}"
+    )
+
+    st.write(
+        f"**Decoration:** {selected_decor}"
+    )
+
+
     selected_entertainment = (
-        filtered_df
-        .groupby(
+        filtered_df.groupby(
             "Entertainment_Category",
             as_index=False
         )["Entertainment"]
         .mean()
+        .dropna()
         .sort_values(
             "Entertainment",
             ascending=False
         )
     )
 
+
     if not selected_entertainment.empty:
 
-        fig_selected = px.bar(
+        fig7 = px.bar(
             selected_entertainment,
             x="Entertainment_Category",
             y="Entertainment",
@@ -488,26 +706,27 @@ if (
             title="Entertainment Cost for Selected Combination"
         )
 
-        fig_selected.update_layout(
+        fig7.update_layout(
             xaxis_title="Entertainment Category",
             yaxis_title="Average Entertainment Cost"
         )
 
         st.plotly_chart(
-            fig_selected,
+            fig7,
             use_container_width=True
         )
 
     else:
-        st.warning(
-            "No entertainment data available for the selected combination."
+
+        st.info(
+            "No entertainment data available for this combination."
         )
 
 else:
 
     st.info(
-        "Select a Wedding Type, Place and Decor Category "
-        "from the sidebar to see the detailed combination analysis."
+        "Select Wedding Type, Place and Decoration Category "
+        "from the sidebar to see detailed analysis."
     )
 
 
@@ -517,16 +736,17 @@ else:
 
 st.divider()
 
-st.subheader("📌 Wedding Type × Place Cost Analysis")
+st.subheader("📌 Wedding Type × Place Cost")
+
 
 pivot_table = pd.pivot_table(
     df,
     index="Place",
     columns="Wedding_Type",
     values="CostofType",
-    aggfunc="mean",
-    margins=True
+    aggfunc="mean"
 )
+
 
 st.dataframe(
     pivot_table.round(2),
@@ -541,5 +761,6 @@ st.dataframe(
 st.divider()
 
 st.caption(
-    "Indian Wedding Cost Analysis | Built with Python, Pandas, Plotly & Streamlit"
+    "Indian Wedding Cost Analysis | "
+    "Python • Pandas • Plotly • Streamlit"
 )
