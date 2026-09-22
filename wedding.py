@@ -20,7 +20,7 @@ st.set_page_config(
 # TITLE
 # =========================================================
 
-st.title("💍 Indian Wedding Cost Analysis Dashboard")
+st.title("💍 Indian Wedding Cost 💍")
 
 st.markdown(
     """
